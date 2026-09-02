@@ -1,0 +1,120 @@
+#crd-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 156px;
+  z-index: 9989;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff9f5c, #d6572f);
+  color: #fff;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  user-select: none;
+}
+
+#crd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9994;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+#crd-overlay.crd-hidden { display: none; }
+
+#crd-panel {
+  width: 100%;
+  max-width: 480px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: #1a1a14;
+  color: #eee;
+  border-radius: 16px 16px 0 0;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.crd-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.crd-title { font-weight: 600; font-size: 16px; }
+#crd-close { cursor: pointer; color: #bbb; font-size: 16px; }
+
+.crd-label {
+  display: block;
+  font-size: 12px;
+  color: #e0c9a9;
+  margin: 10px 0 4px;
+}
+
+#crd-cfg-count, #crd-cfg-context, #crd-cfg-language, #crd-cfg-instruction {
+  width: 100%;
+  box-sizing: border-box;
+  background: #241f14;
+  border: 1px solid #55492f;
+  border-radius: 10px;
+  color: #eee;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.crd-primary, .crd-secondary {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.crd-primary { background: #d6572f; color: #fff; }
+.crd-secondary { background: #241f14; color: #eee; border: 1px solid #55492f; }
+.crd-primary:disabled, .crd-secondary:disabled { opacity: .6; }
+
+.crd-error {
+  margin-top: 10px;
+  color: #ff8a8a;
+  font-size: 13px;
+}
+.crd-hidden { display: none !important; }
+
+.crd-card {
+  margin-top: 12px;
+  background: #241f14;
+  border: 1px solid #55492f;
+  border-radius: 10px;
+  padding: 10px;
+}
+.crd-card-tone {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #ff9f5c;
+  margin-bottom: 4px;
+}
+.crd-card-text { font-size: 14px; line-height: 1.4; }
+.crd-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.crd-card-actions button {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #55492f;
+  background: #1a1a14;
+  color: #eee;
+  cursor: pointer;
+}
+
+.crd-settings-block { margin-top: 8px; }
