@@ -130,6 +130,55 @@
     return null;
   }
 
+  function buildDrawAllPrompt(tones, settings) {
+    const scene = buildSceneWindow(settings);
+    const player = getCtx().name1 || 'the player';
+    const langLine = settings.language && settings.language.trim()
+      ? `Write every option in ${settings.language.trim()}.`
+      : '';
+    const extra = settings.instruction && settings.instruction.trim() ? settings.instruction.trim() : '';
+    const toneList = tones.map((t, i) => {
+      const brief = t.brief && t.brief.trim() ? ` — ${t.brief.trim()}` : '';
+      return `${i + 1}. "${t.name}"${brief}`;
+    }).join('\n');
+
+    return [
+      `CURRENT SCENE (most recent lines last):`,
+      scene || '(no previous messages yet)',
+      '',
+      `TONES (write exactly one option per tone, in this exact order):`,
+      toneList,
+      '',
+      `[OOC: Draft ${tones.length} DIFFERENT short options for what ${player} (the [PLAYER]) could `
+      + `say or do NEXT, as a single next turn. Do not write anything for [CHARACTER]. Do not `
+      + `continue the scene beyond that one player turn. Each option must match the tone listed `
+      + `next to it, in the same order. `
+      + `FORMAT: study the CURRENT SCENE above — physical actions/gestures are wrapped in `
+      + `*asterisks*, spoken dialogue is in "quotes", usually mixed together. Every option MUST `
+      + `follow that same mixed format — include at least one short physical action/gesture in `
+      + `asterisks AND spoken dialogue in quotes when it fits the tone — never dialogue-only. `
+      + `${langLine} ${extra} `
+      + `Respond with ONLY a valid JSON object, no commentary, no markdown fences, in this exact `
+      + `shape: {"options":[{"text":"<option 1>"},{"text":"<option 2>"}, ... exactly `
+      + `${tones.length} items, same order as the tone list above]}]`,
+    ].join('\n');
+  }
+
+  function parseMultiple(raw, expectedCount) {
+    const cleaned = (raw || '').replace(/```json|```/g, '').trim();
+    let candidate = extractBalancedObject(cleaned) || cleaned;
+    function tryParse(str) {
+      try {
+        const parsed = JSON.parse(str);
+        if (Array.isArray(parsed.options)) {
+          return parsed.options.map((o) => (o && typeof o.text === 'string' ? o.text : null));
+        }
+      } catch (e) { /* ignore */ }
+      return null;
+    }
+    return tryParse(candidate) || tryParse(repairJson(candidate)) || null;
+  }
+
   // ---------- HTML base ----------
 
   function injectHtml() {
@@ -287,9 +336,14 @@
       await generate(tone);
     }
 
+    function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
     // Genera un tono y lo guarda en caché, sin tocar la tarjeta visible.
+    // Reintenta automáticamente si el fallo parece ser el servidor saturado
+    // (502/503/"high demand"), con una pequeña espera entre intentos.
     // Devuelve true si salió bien, false si falló (deja el error visible).
-    async function generateAndCache(tone) {
+    async function generateAndCache(tone, attempt) {
+      attempt = attempt || 1;
       try {
         const settings = loadSettings();
         const ctx = getCtx();
@@ -307,7 +361,13 @@
         cache[tone.id] = text;
         return true;
       } catch (e) {
-        showError('Falló la generación: ' + (e && e.message ? e.message : String(e)));
+        const msg = e && e.message ? e.message : String(e);
+        const serverBusy = /502|503|overloaded|high demand/i.test(msg);
+        if (serverBusy && attempt < 3) {
+          await sleep(1500 * attempt);
+          return generateAndCache(tone, attempt + 1);
+        }
+        showError(`"${tone.name}" falló tras reintentar: ` + msg);
         return false;
       }
     }
@@ -330,7 +390,8 @@
       generate(tone);
     }
 
-    async function drawAll() {
+    async function drawAll(attempt) {
+      attempt = attempt || 1;
       if (busy) return;
       const settings = loadSettings();
       const tones = settings.tones;
@@ -341,26 +402,64 @@
       const $label = $('#crd-drawall-label');
       const $btn = $('#crd-draw-all');
       $btn.prop('disabled', true);
-      let firstOkTone = null;
-      for (let i = 0; i < tones.length; i++) {
-        $label.text(`Generando ${i + 1}/${tones.length}...`);
-        // eslint-disable-next-line no-await-in-loop
-        const ok = await generateAndCache(tones[i]);
-        if (ok && !firstOkTone) firstOkTone = tones[i];
-      }
-      $label.text('Draw');
-      $btn.prop('disabled', false);
-      busy = false;
-      if (firstOkTone) {
-        activeId = firstOkTone.id;
-        renderToneBar(loadSettings(), activeId);
-        renderCard(firstOkTone, cache[firstOkTone.id]);
-      } else {
-        showError('No se pudo generar ningún tono. Intenta de nuevo.');
+      $label.text(attempt > 1 ? `Reintentando (${attempt - 1})...` : 'Generando...');
+
+      try {
+        const ctx = getCtx();
+        if (!ctx.chat || ctx.chat.length === 0) {
+          showError('Todavía no hay suficiente contexto en este chat.');
+          $label.text('Draw');
+          $btn.prop('disabled', false);
+          busy = false;
+          return;
+        }
+        const prompt = buildDrawAllPrompt(tones, settings);
+        const raw = await ctx.generateQuietPrompt({ quietPrompt: prompt });
+        const texts = parseMultiple(raw, tones.length);
+
+        $label.text('Draw');
+        $btn.prop('disabled', false);
+        busy = false;
+
+        if (!texts) {
+          showError('No se pudo leer la respuesta completa. Intenta de nuevo con Draw.');
+          return;
+        }
+        let firstOkTone = null;
+        tones.forEach((tone, i) => {
+          if (texts[i]) {
+            cache[tone.id] = texts[i];
+            if (!firstOkTone) firstOkTone = tone;
+          }
+        });
+        if (texts.length < tones.length) {
+          showError(`Solo llegaron ${texts.length}/${tones.length} opciones. Puedes redibujar las que falten individualmente.`);
+        }
+        if (firstOkTone) {
+          activeId = firstOkTone.id;
+          renderToneBar(loadSettings(), activeId);
+          renderCard(firstOkTone, cache[firstOkTone.id]);
+        } else {
+          showError('No se pudo generar ninguna opción. Intenta de nuevo.');
+        }
+      } catch (e) {
+        const msg = e && e.message ? e.message : String(e);
+        const serverBusy = /502|503|overloaded|high demand/i.test(msg);
+        if (serverBusy && attempt < 3) {
+          busy = false;
+          await sleepMs(1500 * attempt);
+          return drawAll(attempt + 1);
+        }
+        $label.text('Draw');
+        $btn.prop('disabled', false);
+        busy = false;
+        showError('Falló la generación: ' + msg);
       }
     }
 
-    $('#crd-draw-all').on('click', drawAll);
+    function sleepMs(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+    $('#crd-draw-all').on('click', () => drawAll());
 
     $('#crd-tonebar').on('click', '.crd-tone-btn:not(.crd-tone-add)', function () {
       const id = $(this).data('id');
