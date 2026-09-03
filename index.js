@@ -144,6 +144,11 @@
             <span id="crd-close">✕</span>
           </div>
 
+          <button id="crd-draw-all" class="crd-drawall">
+            <span class="crd-drawall-icon">✳</span>
+            <span id="crd-drawall-label">Draw</span>
+          </button>
+
           <div id="crd-tonebar"></div>
           <div id="crd-error" class="crd-error crd-hidden"></div>
           <div id="crd-card" class="crd-hidden"></div>
@@ -282,32 +287,39 @@
       await generate(tone);
     }
 
-    async function generate(tone) {
-      if (busy) return;
-      busy = true;
-      $card.removeClass('crd-hidden').html('<div class="crd-loading">Generando...</div>');
+    // Genera un tono y lo guarda en caché, sin tocar la tarjeta visible.
+    // Devuelve true si salió bien, false si falló (deja el error visible).
+    async function generateAndCache(tone) {
       try {
         const settings = loadSettings();
         const ctx = getCtx();
         if (!ctx.chat || ctx.chat.length === 0) {
           showError('Todavía no hay suficiente contexto en este chat.');
-          $card.addClass('crd-hidden');
-          busy = false;
-          return;
+          return false;
         }
         const prompt = buildDrawPrompt(tone, settings);
         const raw = await ctx.generateQuietPrompt({ quietPrompt: prompt });
         const text = parseSingle(raw);
         if (!text) {
-          showError('No se pudo leer la respuesta de la IA. Intenta redibujar.');
-          $card.addClass('crd-hidden');
-          busy = false;
-          return;
+          showError(`"${tone.name}" no se pudo leer, se omitió. Puedes redibujarlo luego.`);
+          return false;
         }
         cache[tone.id] = text;
-        renderCard(tone, text);
+        return true;
       } catch (e) {
         showError('Falló la generación: ' + (e && e.message ? e.message : String(e)));
+        return false;
+      }
+    }
+
+    async function generate(tone) {
+      if (busy) return;
+      busy = true;
+      $card.removeClass('crd-hidden').html('<div class="crd-loading">Generando...</div>');
+      const ok = await generateAndCache(tone);
+      if (ok) {
+        renderCard(tone, cache[tone.id]);
+      } else {
         $card.addClass('crd-hidden');
       }
       busy = false;
@@ -317,6 +329,38 @@
       delete cache[tone.id];
       generate(tone);
     }
+
+    async function drawAll() {
+      if (busy) return;
+      const settings = loadSettings();
+      const tones = settings.tones;
+      if (!tones.length) { showError('Añade al menos un tono primero.'); return; }
+      busy = true;
+      clearError();
+      $card.addClass('crd-hidden');
+      const $label = $('#crd-drawall-label');
+      const $btn = $('#crd-draw-all');
+      $btn.prop('disabled', true);
+      let firstOkTone = null;
+      for (let i = 0; i < tones.length; i++) {
+        $label.text(`Generando ${i + 1}/${tones.length}...`);
+        // eslint-disable-next-line no-await-in-loop
+        const ok = await generateAndCache(tones[i]);
+        if (ok && !firstOkTone) firstOkTone = tones[i];
+      }
+      $label.text('Draw');
+      $btn.prop('disabled', false);
+      busy = false;
+      if (firstOkTone) {
+        activeId = firstOkTone.id;
+        renderToneBar(loadSettings(), activeId);
+        renderCard(firstOkTone, cache[firstOkTone.id]);
+      } else {
+        showError('No se pudo generar ningún tono. Intenta de nuevo.');
+      }
+    }
+
+    $('#crd-draw-all').on('click', drawAll);
 
     $('#crd-tonebar').on('click', '.crd-tone-btn:not(.crd-tone-add)', function () {
       const id = $(this).data('id');

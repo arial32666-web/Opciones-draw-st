@@ -91,6 +91,26 @@
   font-size: 13px;
 }
 
+/* botón Draw (genera todos los tonos de una vez) */
+.crd-drawall {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: none;
+  border-radius: 999px;
+  background: #b98cf2;
+  color: #1a1425;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+.crd-drawall:disabled { opacity: .7; }
+.crd-drawall-icon { font-size: 16px; }
+
 /* barra de tonos */
 #crd-tonebar {
   display: flex;
