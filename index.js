@@ -183,21 +183,17 @@
 
   function injectHtml() {
     const html = `
-      <div id="crd-fab" title="Opciones (Draw)">🧭</div>
+      <div id="crd-bar" title="Arrastra para mover">
+        <div id="crd-draw-pill">
+          <span class="crd-drawall-icon">✳</span>
+          <span id="crd-drawall-label">Draw</span>
+        </div>
+        <div id="crd-bar-gear" title="Personalizar tonos">⚙</div>
+      </div>
 
       <div id="crd-overlay" class="crd-hidden">
         <div id="crd-panel">
-          <div class="crd-header">
-            <span class="crd-title">¿Qué hago ahora?</span>
-            <span id="crd-gear" title="Personalizar tonos">⚙</span>
-            <span id="crd-close">✕</span>
-          </div>
-
-          <button id="crd-draw-all" class="crd-drawall">
-            <span class="crd-drawall-icon">✳</span>
-            <span id="crd-drawall-label">Draw</span>
-          </button>
-
+          <span id="crd-panel-close" title="Cerrar">✕</span>
           <div id="crd-tonebar"></div>
           <div id="crd-error" class="crd-error crd-hidden"></div>
           <div id="crd-card" class="crd-hidden"></div>
@@ -228,8 +224,8 @@
             <input id="crd-cfg-language" type="text" placeholder="Ej: español" />
           </div>
           <div id="crd-tab-appearance" class="crd-tabpanel crd-hidden">
-            <p class="crd-hint">Puedes arrastrar la burbuja 🧭 a cualquier parte de la pantalla.</p>
-            <button id="crd-reset-pos" class="crd-secondary">Restablecer posición de la burbuja</button>
+            <p class="crd-hint">Puedes arrastrar la barra "Draw" a cualquier parte de la pantalla.</p>
+            <button id="crd-reset-pos" class="crd-secondary">Restablecer posición de la barra</button>
           </div>
         </div>
       </div>
@@ -269,18 +265,19 @@
   }
 
   function cardHtml(tone, text, expanded) {
+    const desc = tone.brief && tone.brief.trim() ? ` · ${tone.brief.trim()}` : '';
     return `
       <div class="crd-card-inner${expanded ? ' is-expanded' : ''}">
         <div class="crd-card-top">
-          <span class="crd-card-tone">${tone.icon || ''} ${tone.name}</span>
+          <span class="crd-card-tone">${tone.icon || ''} ${tone.name}${desc}</span>
           <span id="crd-card-expand" title="Expandir">⤢</span>
           <span id="crd-card-wand" title="Redibujar">🪄</span>
           <span id="crd-card-x" title="Cerrar">✕</span>
         </div>
         <div class="crd-card-text" id="crd-card-text">${text}</div>
         <div class="crd-card-actions">
-          <button id="crd-use" class="crd-primary">Usar esto</button>
-          <button id="crd-redraw" class="crd-secondary">Redibujar</button>
+          <button id="crd-use" class="crd-primary">Use this</button>
+          <button id="crd-redraw" class="crd-secondary">Redraw this</button>
         </div>
       </div>`;
   }
@@ -293,7 +290,7 @@
     let busy = false;
     let expanded = false;
 
-    const $fab = $('#crd-fab');
+    const $bar = $('#crd-bar');
     const $overlay = $('#crd-overlay');
     const $error = $('#crd-error');
     const $card = $('#crd-card');
@@ -304,7 +301,7 @@
       $overlay.removeClass('crd-hidden');
     }
     function closePanel() { $overlay.addClass('crd-hidden'); }
-    $('#crd-close').on('click', closePanel);
+    $('#crd-panel-close').on('click', closePanel);
 
     function showError(msg) { $error.text(msg).removeClass('crd-hidden'); }
     function clearError() { $error.text('').addClass('crd-hidden'); }
@@ -398,18 +395,20 @@
       if (!tones.length) { showError('Añade al menos un tono primero.'); return; }
       busy = true;
       clearError();
-      $card.addClass('crd-hidden');
+      openPanel();
+      $('#crd-tonebar').empty();
+      $card.removeClass('crd-hidden').html('<div class="crd-loading">Generando...</div>');
       const $label = $('#crd-drawall-label');
-      const $btn = $('#crd-draw-all');
-      $btn.prop('disabled', true);
+      $bar.addClass('is-busy');
       $label.text(attempt > 1 ? `Reintentando (${attempt - 1})...` : 'Generando...');
 
       try {
         const ctx = getCtx();
         if (!ctx.chat || ctx.chat.length === 0) {
           showError('Todavía no hay suficiente contexto en este chat.');
+          $card.addClass('crd-hidden');
           $label.text('Draw');
-          $btn.prop('disabled', false);
+          $bar.removeClass('is-busy');
           busy = false;
           return;
         }
@@ -418,11 +417,13 @@
         const texts = parseMultiple(raw, tones.length);
 
         $label.text('Draw');
-        $btn.prop('disabled', false);
+        $bar.removeClass('is-busy');
         busy = false;
 
         if (!texts) {
           showError('No se pudo leer la respuesta completa. Intenta de nuevo con Draw.');
+          $card.addClass('crd-hidden');
+          renderToneBar(loadSettings(), activeId);
           return;
         }
         let firstOkTone = null;
@@ -441,6 +442,8 @@
           renderCard(firstOkTone, cache[firstOkTone.id]);
         } else {
           showError('No se pudo generar ninguna opción. Intenta de nuevo.');
+          $card.addClass('crd-hidden');
+          renderToneBar(loadSettings(), activeId);
         }
       } catch (e) {
         const msg = e && e.message ? e.message : String(e);
@@ -451,15 +454,15 @@
           return drawAll(attempt + 1);
         }
         $label.text('Draw');
-        $btn.prop('disabled', false);
+        $bar.removeClass('is-busy');
         busy = false;
+        $card.addClass('crd-hidden');
         showError('Falló la generación: ' + msg);
       }
     }
 
     function sleepMs(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
-    $('#crd-draw-all').on('click', () => drawAll());
 
     $('#crd-tonebar').on('click', '.crd-tone-btn:not(.crd-tone-add)', function () {
       const id = $(this).data('id');
@@ -471,27 +474,28 @@
       openToneEditor(null);
     });
 
-    // ---------- burbuja arrastrable ----------
+    // ---------- barra "Draw" arrastrable ----------
     let dragging = false;
     let moved = false;
-    let startX, startY, startRight, startBottom;
+    let startX, startY, startRight, startBottom, downTarget;
 
-    function applyFabPos(settings) {
+    function applyBarPos(settings) {
       if (settings.fabPos) {
-        $fab.css({ right: settings.fabPos.right + 'px', bottom: settings.fabPos.bottom + 'px' });
+        $bar.css({ right: settings.fabPos.right + 'px', bottom: settings.fabPos.bottom + 'px' });
       } else {
-        $fab.css({ right: '', bottom: '' });
+        $bar.css({ right: '', bottom: '' });
       }
     }
-    applyFabPos(loadSettings());
+    applyBarPos(loadSettings());
 
     function onPointerDown(e) {
       dragging = true;
       moved = false;
+      downTarget = e.target;
       const p = e.touches ? e.touches[0] : e;
       startX = p.clientX;
       startY = p.clientY;
-      const rect = $fab[0].getBoundingClientRect();
+      const rect = $bar[0].getBoundingClientRect();
       startRight = window.innerWidth - rect.right;
       startBottom = window.innerHeight - rect.bottom;
       e.preventDefault();
@@ -504,37 +508,40 @@
       if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
       let right = startRight - dx;
       let bottom = startBottom - dy;
-      right = Math.max(4, Math.min(window.innerWidth - 52, right));
-      bottom = Math.max(4, Math.min(window.innerHeight - 52, bottom));
-      $fab.css({ right: right + 'px', bottom: bottom + 'px' });
+      const rect = $bar[0].getBoundingClientRect();
+      right = Math.max(4, Math.min(window.innerWidth - rect.width - 4, right));
+      bottom = Math.max(4, Math.min(window.innerHeight - rect.height - 4, bottom));
+      $bar.css({ right: right + 'px', bottom: bottom + 'px' });
     }
     function onPointerUp() {
       if (!dragging) return;
       dragging = false;
       if (moved) {
         const settings = loadSettings();
-        const rect = $fab[0].getBoundingClientRect();
+        const rect = $bar[0].getBoundingClientRect();
         settings.fabPos = {
           right: Math.round(window.innerWidth - rect.right),
           bottom: Math.round(window.innerHeight - rect.bottom),
         };
         saveSettings();
+        return;
+      }
+      // fue un toque, no un arrastre: decide qué se tocó
+      if ($(downTarget).closest('#crd-bar-gear').length) {
+        renderTonesTab();
+        $('#crd-config-overlay').removeClass('crd-hidden');
       } else {
-        openPanel();
+        drawAll();
       }
     }
 
-    $fab.on('mousedown touchstart', onPointerDown);
+    $bar.on('mousedown touchstart', onPointerDown);
     $(document).on('mousemove touchmove', onPointerMove);
     $(document).on('mouseup touchend', onPointerUp);
 
     // ---------- panel de configuración ----------
 
     const $configOverlay = $('#crd-config-overlay');
-    $('#crd-gear').on('click', () => {
-      renderTonesTab();
-      $configOverlay.removeClass('crd-hidden');
-    });
     $('#crd-config-close').on('click', () => $configOverlay.addClass('crd-hidden'));
 
     $('.crd-tab').on('click', function () {
@@ -584,7 +591,7 @@
       const s = loadSettings();
       s.fabPos = null;
       saveSettings();
-      applyFabPos(s);
+      applyBarPos(s);
     });
 
     (function initConfigFields() {
