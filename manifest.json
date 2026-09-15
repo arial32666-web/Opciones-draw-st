@@ -1,12 +1,13 @@
 {
-  "display_name": "Opciones (Draw)",
+  "display_name": "Crossroads",
   "loading_order": 100,
   "requires": [],
   "optional": [],
   "js": "index.js",
-  "css": "style.css",
-  "author": "Tú",
-  "version": "2.0.0",
+  "css": "",
+  "author": "Jeppsterrr (con ayuda de Clowuds) — puerto a SillyTavern",
+  "version": "1.4.1-st1",
   "homePage": "",
-  "auto_update": false
+  "auto_update": false,
+  "generate_interceptor": "crossroads_interceptor"
 }
