@@ -14,13 +14,33 @@
  *      de `tavo` como si fuera una variable local del archivo.
  *   4. Ejecuta entry.js de la misma forma.
  *
- * Si algo de esto falla, revisa la consola del navegador (F12): cada paso deja
- * un mensaje "[Crossroads]" indicando qué salió mal.
+ * Si algo de esto falla, aparece un aviso rojo abajo de la pantalla (no solo
+ * en la consola), porque en apps envolventes como TauriTavern en celular no
+ * siempre hay forma fácil de abrir las herramientas de desarrollador.
  */
 
 import "./tavo-shim.js";
 
 const BASE_URL = new URL(".", import.meta.url).href;
+
+function showVisibleError(label, err) {
+  const message = err && err.message ? err.message : String(err);
+  console.error("[Crossroads] " + label + ":", err);
+  try {
+    const box = document.createElement("div");
+    box.textContent = "[Crossroads] " + label + ": " + message;
+    box.style.cssText = "position:fixed;left:8px;right:8px;bottom:8px;z-index:999999;"
+      + "background:#3a0d0d;color:#ffb3b3;border:1px solid #ff6b6b;border-radius:8px;"
+      + "padding:10px 12px;font:12px/1.4 monospace;white-space:pre-wrap;max-height:40vh;"
+      + "overflow:auto;box-shadow:0 2px 10px rgba(0,0,0,.5);";
+    const closeBtn = document.createElement("div");
+    closeBtn.textContent = "✕ cerrar";
+    closeBtn.style.cssText = "float:right;cursor:pointer;opacity:.8;margin-left:8px;";
+    closeBtn.addEventListener("click", () => box.remove());
+    box.prepend(closeBtn);
+    document.body.appendChild(box);
+  } catch (_) {}
+}
 
 // Ejecuta el texto de un script tal cual (sin modificarlo) pero dentro de una
 // función que recibe `tavo` como parámetro, en vez de depender de una
@@ -30,7 +50,7 @@ function runWithLocalTavo(code, tavo, label) {
     const fn = new Function("tavo", code);
     fn(tavo);
   } catch (err) {
-    console.error("[Crossroads] error ejecutando " + label + ":", err);
+    showVisibleError("error ejecutando " + label, err);
   }
 }
 
@@ -63,7 +83,7 @@ async function mountPanelFragment(tavo) {
 
 async function boot() {
   if (typeof window.__crossroadsBuildTavo !== "function") {
-    console.error("[Crossroads] tavo-shim.js no cargó correctamente.");
+    showVisibleError("arranque", new Error("tavo-shim.js no cargó correctamente."));
     return;
   }
   const tavo = window.__crossroadsBuildTavo();
@@ -71,7 +91,7 @@ async function boot() {
   try {
     await mountPanelFragment(tavo);
   } catch (err) {
-    console.error("[Crossroads] no se pudo montar panel.html:", err);
+    showVisibleError("no se pudo montar panel.html", err);
     return;
   }
 
@@ -79,7 +99,7 @@ async function boot() {
     const entryCode = await fetchText("entry.js");
     runWithLocalTavo(entryCode, tavo, "entry.js");
   } catch (err) {
-    console.error("[Crossroads] no se pudo cargar entry.js:", err);
+    showVisibleError("no se pudo cargar entry.js", err);
   }
 
   console.log("[Crossroads] extensión cargada.");
