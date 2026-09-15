@@ -1,5 +1,13 @@
 # Crossroads para SillyTavern (puerto no oficial)
 
+> **Actualización:** se corrigió un bug real de la primera versión de este
+> puerto: si tenías instalada también "Message Enhancer (CCC)" (u otra
+> extensión CCC portada de la misma forma), las dos competían por la misma
+> variable global `tavo` y la que cargaba segunda rompía a la primera. Ahora
+> cada extensión usa su propia copia aislada de `tavo` — pueden convivir sin
+> problema. Si ya tenías la versión vieja instalada, reemplaza estos archivos
+> por los nuevos (mismo procedimiento de instalación de siempre).
+
 Esto es el plugin **Crossroads** de Jeppsterrr (originalmente para la app Tavo,
 archivo `Crossroads-1_4_1.tpg`) adaptado para correr como extensión de
 SillyTavern.

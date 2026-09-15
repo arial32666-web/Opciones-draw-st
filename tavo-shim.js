@@ -4,10 +4,20 @@
  *
  * NO es una copia de entry.js/panel.html: es una traducción. entry.js y panel.html
  * se dejan exactamente como venían (mismo diseño, mismo HTML/CSS, misma lógica).
- * Este archivo solo crea un objeto global `window.tavo` con la misma forma que la
- * app Tavo, pero que por dentro usa las funciones reales de SillyTavern. entry.js
- * y panel.html siguen llamando a `tavo.get`, `tavo.generate`, `tavo.plugin.on`, etc.
- * sin saber que están hablando con SillyTavern.
+ * Este archivo crea un objeto `tavo` con la misma forma que usa la app Tavo, pero
+ * que por dentro usa las funciones reales de SillyTavern. entry.js y panel.html
+ * siguen llamando a `tavo.get`, `tavo.generate`, `tavo.plugin.on`, etc. sin saber
+ * que están hablando con SillyTavern.
+ *
+ * IMPORTANTE — por qué esto ya NO usa `window.tavo`:
+ * Si tienes instalada otra extensión CCC portada de la misma forma (p. ej.
+ * "Message Enhancer"), y las dos pusieran su propio objeto en `window.tavo`,
+ * la que cargue después le borraría la variable global a la que cargó primero
+ * y una de las dos quedaría rota. Por eso este archivo NO toca `window.tavo`:
+ * expone una fábrica con nombre único (`window.__crossroadsBuildTavo`), y
+ * index.js ejecuta entry.js/panel.html pasándoles SU PROPIA copia de `tavo`
+ * como si fuera una variable local — nunca global, nunca compartida con otra
+ * extensión.
  *
  * SUPUESTOS QUE HICE SOBRE LA API INTERNA DE SILLYTAVERN
  * -------------------------------------------------------
@@ -39,7 +49,7 @@
  *                                           abajo, sección "puente de eventos").
  */
 
-(function () {
+window.__crossroadsBuildTavo = function () {
   "use strict";
 
   // ---------------------------------------------------------------------
@@ -490,10 +500,10 @@
   }
 
   // ---------------------------------------------------------------------
-  // 10. Ensamblado del objeto global `tavo`
+  // 10. Ensamblado del objeto `tavo` (local a esta extensión, no global)
   // ---------------------------------------------------------------------
 
-  window.tavo = {
+  var tavo = {
     get: readVar,
     set: writeVar,
     generate: tavoGenerate,
@@ -515,4 +525,6 @@
   wireChatChanged();
   wireGenerationEnd();
   wireSidebarAction();
-})();
+
+  return tavo;
+};
